@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ResNet50 Image Recognition</title>
+</head>
+<body>
+    <h1>ResNet50 Image Recognition</h1>
+
+    <form method="POST" enctype="multipart/form-data" action="{{ url_for('predict') }}">
+        <label for="image">Choose an image:</label>
+        <input type="file" name="image" id="image">
+        <br><br>
+        <button type="submit">Predict</button>
+    </form>
+
+    {% if labels %}
+        <h2>Predictions:</h2>
+        <ul>
+            {% for label, score in zip(labels, scores) %}
+                <li>{{ label }} ({{ score }})</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+</body>
+</html>
