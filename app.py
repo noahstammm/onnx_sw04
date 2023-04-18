@@ -2,25 +2,28 @@ from flask import Flask, render_template, request
 import onnxruntime
 import numpy as np
 import cv2
+import torch
 
 app = Flask(__name__)
 
 # Laden des ResNet50-Modells
-sess = onnxruntime.InferenceSession('/model/resnet101-v2-7.onnx')
+sess = onnxruntime.InferenceSession('model/resnet101-v2-7.onnx')
 
 # Definition der Eingabegröße des Modells
 input_name = sess.get_inputs()[0].name
 input_shape = sess.get_inputs()[0].shape
 input_dtype = sess.get_inputs()[0].type
 
+
 # Laden der Klassenbezeichnungen
-with open('/model/synset.txt', 'r') as f:
+with open('model/synset.txt', 'r') as f:
     labels = [line.strip() for line in f]
 
 
 @app.route('/')
 def index():
-    return render_template('/templates/index.html')
+    print(input_dtype)
+    return render_template('index.html')
 
 
 @app.route('/predict', methods=['POST'])
@@ -29,11 +32,16 @@ def predict():
     file = request.files['image']
     img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
 
-    # Skalierung des Bildes auf die Größe, die das Modell erwartet
+    # Skalierung des Bildes auf die Größe, das das Modell erwartet
     img_resized = cv2.resize(img, tuple(input_shape[2:]))
 
+
+
     # Konvertierung des Bildes in das Format, das das Modell erwartet
+    input_dtype = np.float32
     img_np = np.asarray(img_resized, dtype=input_dtype)
+
+    #img_np = torch.tensor(img_resized, dtype=torch.float)
     img_np = img_np.transpose(2, 0, 1)
     img_np = img_np.reshape(input_shape)
 
