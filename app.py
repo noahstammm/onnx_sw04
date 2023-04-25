@@ -1,61 +1,54 @@
-from flask import Flask, render_template, request
 import onnxruntime
 import numpy as np
-import cv2
-import torch
+from flask import Flask, request, jsonify, render_template
+from PIL import Image
+
 
 app = Flask(__name__)
 
-# Laden des ResNet50-Modells
-sess = onnxruntime.InferenceSession('model/resnet101-v2-7.onnx')
 
-# Definition der Eingabegröße des Modells
+sess = onnxruntime.InferenceSession('./model/SSD.onnx')
 input_name = sess.get_inputs()[0].name
-input_shape = sess.get_inputs()[0].shape
-input_dtype = sess.get_inputs()[0].type
-
-
-# Laden der Klassenbezeichnungen
-with open('model/synset.txt', 'r') as f:
-    labels = [line.strip() for line in f]
 
 
 @app.route('/')
-def index():
-    print(input_dtype)
+def home():
+
     return render_template('index.html')
 
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # Laden des Bildes aus dem HTML-Formular
+    print('hi')
     file = request.files['image']
-    img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+    print("test")
+    input_shape = (1, 3, 1200, 1200)
+    img = Image.open(file)
+    img = img.resize((1200, 1200), Image.BILINEAR)
+    img_data = np.array(img)
+    img_data = np.transpose(img_data, [2, 0, 1])
+    img_data = np.expand_dims(img_data, 0)
+    mean_vec = np.array([0.485, 0.456, 0.406])
+    stddev_vec = np.array([0.229, 0.224, 0.225])
+    norm_img_data = np.zeros(img_data.shape).astype('float32')
+    for i in range(img_data.shape[1]):
+        norm_img_data[:, i, :, :] = (img_data[:, i, :, :] / 255 - mean_vec[i]) / stddev_vec[i]
 
-    # Skalierung des Bildes auf die Größe, das das Modell erwartet
-    img_resized = cv2.resize(img, tuple(input_shape[2:]))
+    # Ausführen der Inferenz auf dem ONNX-Modell
+    outputs = sess.run(None, {input_name: img})
 
+    # Formatieren der Ausgabe als JSON
+    result = []
+    for i in range(outputs[0].shape[1]):
+        label = int(outputs[0][0, i, 1])
+        confidence = float(outputs[0][0, i, 2])
+        if confidence > 0.5:
+            result.append({
+                'label': label,
+                'confidence': confidence
+            })
 
-
-    # Konvertierung des Bildes in das Format, das das Modell erwartet
-    input_dtype = np.float32
-    img_np = np.asarray(img_resized, dtype=input_dtype)
-
-    #img_np = torch.tensor(img_resized, dtype=torch.float)
-    img_np = img_np.transpose(2, 0, 1)
-    img_np = img_np.reshape(input_shape)
-
-    # Generierung der Vorhersage
-    outputs = sess.run(None, {input_name: img_np})
-    predictions = np.squeeze(outputs[0])
-
-    # Anzeigen der Top-5-Klassenbezeichnungen mit den höchsten Vorhersagewerten
-    top_indexes = np.argsort(predictions)[::-1][:5]
-    top_labels = [labels[i] for i in top_indexes]
-    top_scores = [predictions[i] for i in top_indexes]
-
-    # Rückgabe der Vorhersage als JSON-Objekt an das HTML-Formular
-    return {'labels': top_labels, 'scores': top_scores}
+    return render_template('result.html', prediction=result)
 
 
 if __name__ == '__main__':

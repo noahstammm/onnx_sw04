@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Object Detection</title>
+</head>
+<body>
+    <h1>Object Detection Result</h1>
+    <p>The detected objects are:</p>
+    <ul>
+    {% for object in prediction %}
+        <li>Label: {{ object.label }}, Confidence: {{ object.confidence }}</li>
+    {% endfor %}
+    </ul>
+</body>
+</html>
